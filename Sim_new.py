@@ -14,7 +14,7 @@ import math
 #import random
 
 
-G = ox.graph_from_point((-37.57742, 144.72607), distance=2500, distance_type='bbox', network_type='walk')
+G = ox.graph_from_point((-37.814, 144.96332), distance=2000, distance_type='bbox', network_type='walk')
 nodes, edges = ox.graph_to_gdfs(G)
 fig, ax = ox.plot_graph(G)
 
@@ -24,8 +24,23 @@ bearings = pd.Series([data['bearing'] for u, v, k, data in G.edges(keys=True, da
 #lengths = pd.Series([data['length'] for u, v, k, data in G.edges(keys=True, data=True)])
 ax = bearings.hist(bins=60, zorder=2, alpha=0.8)
 ax.set_xlim(0, 360)
-ax.set_ylim(0,6000)
-ax.set_title('Sunbury pedestrian network edge bearings')
+ax.set_ylim(0,60000)
+ax.set_title('Melbourne pedestrian network edge bearings')
+#plt.savefig('Edge_bearings_Sunbury')
+plt.show()
+
+H = ox.graph_from_point((39.9075, 116.39723), distance=35000, distance_type='bbox', network_type='walk')
+nodes, edges = ox.graph_to_gdfs(H)
+fig, ax = ox.plot_graph(H)
+
+# calculate edge bearings and visualize their frequency
+H = ox.add_edge_bearings(H)
+bearings = pd.Series([data['bearing'] for u, v, k, data in H.edges(keys=True, data=True)])
+#lengths = pd.Series([data['length'] for u, v, k, data in H.edges(keys=True, data=True)])
+ax = bearings.hist(bins=60, zorder=2, alpha=0.8)
+ax.set_xlim(0, 360)
+ax.set_ylim(0,60000)
+ax.set_title('Beijing pedestrian network edge bearings')
 #plt.savefig('Edge_bearings_Sunbury')
 plt.show()
 
@@ -35,23 +50,44 @@ fig, ax = ox.plot_graph(G_proj)
 plt.tight_layout()
 nodes_proj, edges_proj = ox.graph_to_gdfs(G_proj, nodes=True, edges=True)
 
-def bearing(G,origin,destination):
+# def bearing(G,origin,destination):
     
-    #nodes_proj, edges_proj = ox.graph_to_gdfs(G_proj, nodes=True, edges=True)
-    node1lat = nodes_proj.at[origin, 'lat']
-    node1lon = nodes_proj.at[origin, 'lon']
-    node2lat = nodes_proj.at[destination, 'lat']
-    node2lon = nodes_proj.at[destination, 'lon']
+#     #nodes_proj, edges_proj = ox.graph_to_gdfs(G_proj, nodes=True, edges=True)
+#     node1lat = nodes_proj.at[origin, 'lat']
+#     node1lon = nodes_proj.at[origin, 'lon']
+#     node2lat = nodes_proj.at[destination, 'lat']
+#     node2lon = nodes_proj.at[destination, 'lon']
+#     londiff = node2lon - node1lon 
+#     latdiff = node2lat - node1lat
+#     if latdiff > 0 and londiff > 0:
+#         bearing = math.degrees(math.atan2(latdiff,londiff))
+#     elif latdiff < 0 and londiff > 0:
+#         bearing = 360.0 + math.degrees(math.atan2(latdiff,londiff))
+#     elif latdiff < 0 and londiff < 0:
+#         bearing = 360.0 + math.degrees(math.atan2(latdiff,londiff))
+#     else:
+#         bearing = math.degrees(math.atan2(latdiff,londiff))
+#     return bearing
+#REVISED FUNCTION
+def bearing(G,node1,node2):
+
+    node1lat = nodes.at[node1, 'y']
+    node1lon = nodes.at[node1, 'x']
+    node2lat = nodes.at[node2, 'y']
+    node2lon = nodes.at[node2, 'x']
     londiff = node2lon - node1lon 
+    print('londiff: '+str(londiff))
     latdiff = node2lat - node1lat
-    if latdiff > 0 and londiff > 0:
-        bearing = math.degrees(math.atan2(latdiff,londiff))
-    elif latdiff < 0 and londiff > 0:
-        bearing = 360.0 + math.degrees(math.atan2(latdiff,londiff))
-    elif latdiff < 0 and londiff < 0:
-        bearing = 360.0 + math.degrees(math.atan2(latdiff,londiff))
-    else:
-        bearing = math.degrees(math.atan2(latdiff,londiff))
+    print('latdiff: '+str(latdiff))
+    if latdiff > 0 and londiff > 0: # Quadrant1
+        bearing = 90.0 - math.degrees(math.atan2(latdiff,londiff))
+    elif latdiff < 0 and londiff > 0: #Qaudrant2
+        bearing = 90.0 - math.degrees(math.atan2(latdiff,londiff))
+    elif latdiff < 0 and londiff < 0: #Qaudrant3
+        bearing = 90.0 - math.degrees(math.atan2(latdiff,londiff))
+    elif latdiff > 0 and londiff < 0: #Qaudrant4
+        bearing = 450.0 - math.degrees(math.atan2(latdiff,londiff))
+
     return bearing
 
 def path_length(G, path):
@@ -332,6 +368,46 @@ def la_heuristic(neighbor, destination, origin):
     least_angle = abs(target_angle - bearing(G,origin,neighbor))       
     return 1000000*least_angle
 
+def astar_least_angle_2(G,origin,destination,weight = None,): 
+    
+    import networkx as nx
+    
+    g = nx.Graph()
+    for u,v,data in G.edges(data=True):
+        w = data['length'] if 'length' in data else 1.0
+        if g.has_edge(u,v):
+            g[u][v]['length'] += w
+        else:
+            g.add_edge(u, v, length=w)
+
+    route =  astar_path(g, origin, destination, heuristic=la_heuristic_2, weight=weight,)
+    return route
+
+def la_heuristic_2(neighbor,destination,origin):
+    target_angle = bearing(G,destination,origin)
+    least_angle = abs(target_angle - bearing(G,destination,neighbor))       
+    return 1000000*least_angle
+
+def astar_least_angle_3(G,origin,destination,weight = None,): 
+    
+    import networkx as nx
+    
+    g = nx.Graph()
+    for u,v,data in G.edges(data=True):
+        w = data['length'] if 'length' in data else 1.0
+        if g.has_edge(u,v):
+            g[u][v]['length'] += w
+        else:
+            g.add_edge(u, v, length=w)
+
+    route =  astar_path(g, origin, destination, heuristic=la_heuristic_3, weight=weight,)
+    return route
+
+def la_heuristic_3(neighbor,destination,origin):
+    target_angle = bearing(G,origin,neighbor)
+    least_angle = abs(target_angle - bearing(G,neighbor,destination))       
+    return 1000000*least_angle
+
 def least_angle_route(G,origin,destination,weight = None):
     
     route = [origin]
@@ -463,6 +539,8 @@ def fewest_turns(G,origin,destination):
                 break
         if flag == 1:
              break
+    from itertools import groupby
+    route = [x[0] for x in groupby(route)]
     return temp_route
 
 # degrees to radians
@@ -516,14 +594,25 @@ list_origin = []
 list_destination = []
 list_shortest = []
 #list_kpath = []
-list_leastangle = []
+#list_leastangle = []
 list_leastangle_astar = []
+list_leastangle_2 = []
+list_leastangle_3 = []
 list_llf = []
 list_slf = []
 list_fturns = []
+list_shortest_route = []
+#list_kpath = []
+#list_leastangle = []
+list_leastangle_astar_route = []
+list_leastangle_2_route = []
+list_leastangle_3_route = []
+list_llf_route = []
+list_slf_route = []
+list_fturns_route = []
 #list_mturns = []
 df = pd.DataFrame()
-while m <50000:
+while m <50:
     print('Iteration number '+str(m+1))
 
     origin = random.choice(list(nodes_proj['osmid']))
@@ -537,8 +626,8 @@ while m <50000:
                 continue
     
     #clearing buffer
-    if boundingBox(51.50853, -0.12574, 2.0)[0] <= nodes_proj.at[origin, 'lat'] <= boundingBox(51.50853, -0.12574, 2.0)[1]:
-        if boundingBox(51.50853, -0.12574, 2.0)[2] <= nodes_proj.at[origin, 'lon'] <= boundingBox(51.50853, -0.12574, 2.0)[3]:
+    if boundingBox(-37.814, 144.96332, 2.0)[0] <= nodes_proj.at[origin, 'lat'] <= boundingBox(-37.814, 144.96332, 2.0)[1]:
+        if boundingBox(-37.814, 144.96332, 2.0)[2] <= nodes_proj.at[origin, 'lon'] <= boundingBox(-37.814, 144.96332, 2.0)[3]:
             #checking for min and max trip length thresholds
             shortest_route_length = path_length(G_proj, nx.shortest_path(G_proj, origin,destination,weight = 'length'))
             if shortest_route_length >= 400 and shortest_route_length <= 2000 :
@@ -551,11 +640,21 @@ while m <50000:
                 
                 list_shortest.append(shortest_route_length)
                 #list_kpath.append(path_length(G_proj,list_paths[-1]))
-                list_leastangle.append(path_length(G_proj,least_angle_route(G_proj,origin,destination)))
+                #list_leastangle.append(path_length(G_proj,least_angle_route(G_proj,origin,destination)))
                 list_leastangle_astar.append(path_length(G_proj,astar_least_turns(G_proj,origin,destination)))       
+                list_leastangle_2.append(path_length(G_proj,astar_least_angle_2(G_proj,origin,destination)))
+                list_leastangle_3.append(path_length(G_proj,astar_least_angle_3(G_proj,origin,destination)))
                 list_llf.append(path_length(G_proj,llf_route(G_proj,origin,destination)))
                 list_slf.append(path_length(G_proj,slf_route(G,origin,destination)))     
                 list_fturns.append(path_length(G_proj,fewest_turns(G_proj,origin,destination)))
+                
+                list_shortest_route.append(nx.shortest_path(G_proj, origin,destination,weight = 'length'))
+                list_leastangle_astar_route.append(astar_least_turns(G_proj,origin,destination))     
+                list_leastangle_2_route.append(astar_least_angle_2(G_proj,origin,destination))
+                list_leastangle_3_route.append(astar_least_angle_3(G_proj,origin,destination))
+                list_llf_route.append(llf_route(G_proj,origin,destination))
+                list_slf_route.append(slf_route(G,origin,destination))
+                list_fturns_route.append(fewest_turns(G_proj,origin,destination))
                 #list_mturns.append(path_length(G_proj,most_turns_route(G_proj,origin,destination,list_paths,45)))
     
 #        
@@ -564,11 +663,45 @@ df['Origin_node'] = list_origin
 df['Destination_node'] = list_destination
 df['Shortest_route_length'] = list_shortest
 #df['K-th_route_length'] = list_kpath
-df['Least_angle_route_length'] = list_leastangle
+#df['Least_angle_route_length'] = list_leastangle
 df['Least_angle_astar'] = list_leastangle_astar
+df['Least_angle_astar_2'] = list_leastangle_2
+df['Least_angle_astar_3'] = list_leastangle_3
 df['Longest_leg_first_route_length'] = list_llf
 df['Shortest_leg_first_route_length'] = list_slf
 df['Fewest_turns_route_length'] = list_fturns
+df['Shortest_route'] = list_shortest
+#df['K-th_route_length'] = list_kpath
+#df['Least_angle_route_length'] = list_leastangle
+df['Least_angle_astar_route'] = list_leastangle_astar_route
+df['Least_angle_astar_2_route'] = list_leastangle_2_route
+df['Least_angle_astar_3_route'] = list_leastangle_3_route
+df['Longest_leg_first_route'] = list_llf_route
+df['Shortest_leg_first_route'] = list_slf_route
+df['Fewest_turns_route'] = list_fturns_route
 #df['Most_turns_route_length'] = list_mturns
 #
-df.to_csv('London_s50000_d2000_buffer.csv')
+df.to_csv('Melbourne_s50000_d2000_buffer.csv')
+
+fig, ax = ox.plot_graph_route(G, df['Least_angle_astar_route'][45], fig_height=20)
+fig, ax = ox.plot_graph_route(G, df['Least_angle_astar_2_route'][45], fig_height=20)
+fig, ax = ox.plot_graph_route(G, df['Longest_leg_first_route'][45], fig_height=20)
+fig, ax = ox.plot_graph_route(G, df['Shortest_leg_first_route'][45], fig_height=20)
+fig, ax = ox.plot_graph_route(G, df['Fewest_turns_route'][45], fig_height=20)
+from itertools import groupby
+fig, ax = ox.plot_graph_route(G, [x[0] for x in groupby(df['Fewest_turns_route'][36])], fig_height=20)
+plt.show()
+
+fig, ax = ox.plot_graph_route(G, [6167441044,6167289287], fig_height=10)
+
+df['Least_angle_astar'].mean()
+df['Least_angle_astar'].std()
+df['Least_angle_astar_2'].mean()
+df['Least_angle_astar_2'].std()
+
+from scipy.stats import ttest_ind
+ttest_ind(df['Least_angle_astar'], df['Least_angle_astar_2'])
+ttest_ind(df['Least_angle_astar'], df['Least_angle_astar_3'])
+ttest_ind(df['Least_angle_astar'], df['Longest_leg_first_route_length'])
+ttest_ind(df['Least_angle_astar'], df['Shortest_leg_first_route_length'])
+ttest_ind(df['Longest_leg_first_route_length'], df['Shortest_leg_first_route_length'])
